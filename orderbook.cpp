@@ -117,8 +117,58 @@ using OrderPointers=std::list<OrderPointer>;
 class OrderModify{
 public:
         OrderModify(OrderId orderid,Price price,Side side,Quantity quantity)
-        :
+        :orderid_{OrderId}
+        ,price_{price}
+        ,side_{side}
+        ,quantity_{quantity}
+        {}
+        OrderId GetOrderId() const{
+            return orderid_;
+        }
+
+        Price GetPrice() const{
+            return price_;
+        }
+        Side GetSide() const{
+            return side_;
+        }
+        Quantity GetQuantity() const{
+            return quantity_;
+        }
+private:
+OrderId orderid_;
+Price price_;
+Side side_;
+Quantity quantity_;
+
+
 };
+struct TradeInfo
+{
+    OrderId orderid_;
+    Price price_;
+    Quantity quantity;
+};
+class Trade
+{
+public:
+Trade(const TradeInfo& bidTrade,const TradeInfo& askTrade)
+:bidTrade_{bidTrade}
+,askTrade_{askTrade}
+{}
+const TradeInfo& GetBidTrade() const{
+    return bidTrade_;
+}
+const TradeInfo& GetAskTrade() const{
+    return askTrade_;
+}
+private:
+TradeInfo bidTrade_;
+TradeInfo askTrade_;
+};
+using Trades=std::vector<Trade>;
+
+
 
     
 int main()
