@@ -25,7 +25,8 @@
 enum class OrderType
 {
     GoodTillCancel,
-    FindAndKill
+    FindAndKill,
+    Market
 };
 enum class Side
 {
@@ -190,27 +191,26 @@ class Orderbook
     std::map<Price,OrderPointers,std::less<Price>>asks_;
     std::unordered_map<OrderId,OrderEntry>orders_;
     
-    bool CanMatch(Side side,Price price)
+    bool CanMatch(Side side, Price price) const
     {
-        if(side== Side ::Buy)
+        if(side == Side::Buy)
         {
             if(asks_.empty())
-            {
                 return false;
-                const auto&[bestAsk, _]=*asks_.begin();
-                return price>=bestAsk;
-
-            }
-            else{
-                if(bids_.empty())
-                     return false;
-
-                    const auto&[bestBid,_]=*bids_.begin();
-                    return price<=bestBid;
-            }
-        
+            
+            const auto& [bestAsk, _] = *asks_.begin();
+            return price >= bestAsk;
+        }
+        else
+        {
+            if(bids_.empty())
+                return false;
+            
+            const auto& [bestBid, _] = *bids_.begin();
+            return price <= bestBid;
+        }
     }
-}
+    
     Trades matchOrders()
     {
         Trades trades;
@@ -328,6 +328,84 @@ class Orderbook
         }
         
     }
+    
+    Trades AddMarketOrder(OrderPointer order)
+    {
+        if(orders_.contains(order->GetOrderId()))
+            return {};
+        
+        if(order->GetOrderType() != OrderType::Market)
+            return {};
+        
+        Trades trades;
+        Quantity remaining = order->GetRemainingQuantity();
+        
+        if(order->GetSide() == Side::Buy)
+        {
+            while(remaining > 0 && !asks_.empty())
+            {
+                auto& [askPrice, askOrders] = *asks_.begin();
+                
+                while(remaining > 0 && !askOrders.empty())
+                {
+                    auto& ask = askOrders.front();
+                    Quantity tradeQty = std::min(remaining, ask->GetRemainingQuantity());
+                    
+                    order->Fill(tradeQty);
+                    ask->Fill(tradeQty);
+                    remaining -= tradeQty;
+                    
+                    trades.push_back(Trade{
+                        TradeInfo{order->GetOrderId(), askPrice, tradeQty},
+                        TradeInfo{ask->GetOrderId(), askPrice, tradeQty}
+                    });
+                    
+                    if(ask->IsFilled())
+                    {
+                        orders_.erase(ask->GetOrderId());
+                        askOrders.pop_front();
+                    }
+                }
+                
+                if(askOrders.empty())
+                    asks_.erase(askPrice);
+            }
+        }
+        else
+        {
+            while(remaining > 0 && !bids_.empty())
+            {
+                auto& [bidPrice, bidOrders] = *bids_.begin();
+                
+                while(remaining > 0 && !bidOrders.empty())
+                {
+                    auto& bid = bidOrders.front();
+                    Quantity tradeQty = std::min(remaining, bid->GetRemainingQuantity());
+                    
+                    order->Fill(tradeQty);
+                    bid->Fill(tradeQty);
+                    remaining -= tradeQty;
+                    
+                    trades.push_back(Trade{
+                        TradeInfo{bid->GetOrderId(), bidPrice, tradeQty},
+                        TradeInfo{order->GetOrderId(), bidPrice, tradeQty}
+                    });
+                    
+                    if(bid->IsFilled())
+                    {
+                        orders_.erase(bid->GetOrderId());
+                        bidOrders.pop_front();
+                    }
+                }
+                
+                if(bidOrders.empty())
+                    bids_.erase(bidPrice);
+            }
+        }
+        
+        return trades;
+    }
+    
     Trades MatchOrder(OrderModify order)
     {
         if(!orders_.contains(order.GetOrderId()))
@@ -374,13 +452,28 @@ class Orderbook
 int main()
 {
     Orderbook orderbook;
-    const OrderId orderId=1;
-    OrderPointer order1=std::make_shared<Order>(OrderType::GoodTillCancel,orderId,Side::Buy,100,10);
-    std::cout<<"Adding Order 1\n";
-    orderbook.AddOrder(order1);
-    std::cout<<orderbook.Size()<< " orders in the orderbook\n";
-    orderbook.CancelOrder(orderId);
-    std::cout<<"Cancelled Order 1\n";
-    std::cout<<orderbook.Size()<<" orders in the orderbook\n";
+    
+    std::cout << "=== Adding Limit Orders ===\n";
+    OrderPointer sell1 = std::make_shared<Order>(OrderType::GoodTillCancel, 1, Side::Sell, 105, 10);
+    OrderPointer sell2 = std::make_shared<Order>(OrderType::GoodTillCancel, 2, Side::Sell, 103, 5);
+    OrderPointer buy1 = std::make_shared<Order>(OrderType::GoodTillCancel, 3, Side::Buy, 98, 15);
+    
+    orderbook.AddOrder(sell1);
+    orderbook.AddOrder(sell2);
+    orderbook.AddOrder(buy1);
+    std::cout << "Orders in book: " << orderbook.Size() << "\n\n";
+    
+    std::cout << "=== Adding Market Buy Order (qty=8) ===\n";
+    OrderPointer marketBuy = std::make_shared<Order>(OrderType::Market, 4, Side::Buy, 0, 8);
+    Trades trades1 = orderbook.AddMarketOrder(marketBuy);
+    std::cout << "Trades executed: " << trades1.size() << "\n";
+    std::cout << "Orders in book: " << orderbook.Size() << "\n\n";
+    
+    std::cout << "=== Adding Market Sell Order (qty=10) ===\n";
+    OrderPointer marketSell = std::make_shared<Order>(OrderType::Market, 5, Side::Sell, 0, 10);
+    Trades trades2 = orderbook.AddMarketOrder(marketSell);
+    std::cout << "Trades executed: " << trades2.size() << "\n";
+    std::cout << "Orders in book: " << orderbook.Size() << "\n";
+    
     return 0;
 }
