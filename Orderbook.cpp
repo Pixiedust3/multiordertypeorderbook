@@ -39,9 +39,9 @@ void Orderbook::PruneGoodForDayOrders()
 		{
 			std::scoped_lock ordersLock{ ordersMutex_ };
 
-			for (const auto& [_, entry] : orders_)
+			for (const auto& [existingOrderId, entry] : orders_)
 			{
-				const auto& [order, _] = entry;
+				const auto& [order, location] = entry;
 
 				if (order->GetOrderType() != OrderType::GoodForDay)
 					continue;

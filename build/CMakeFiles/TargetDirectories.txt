@@ -1,3 +1,0 @@
-/home/sirus/Desktop/Aea/build/CMakeFiles/orderbook_app.dir
-/home/sirus/Desktop/Aea/build/CMakeFiles/edit_cache.dir
-/home/sirus/Desktop/Aea/build/CMakeFiles/rebuild_cache.dir
