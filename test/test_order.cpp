@@ -17,5 +17,11 @@ SCENARIO("Orders can be filled ")
             REQUIRE(order.GetFilledQuantity() == 0);
             REQUIRE_FALSE(order.IsFilled());
         }
+        WHEN("An overfill is attempted") {
+            THEN("A logic_error is thrown") {
+                REQUIRE_THROWS_AS(order.Fill(51), std::logic_error);
+            }
+        }
     }
+    
 }
